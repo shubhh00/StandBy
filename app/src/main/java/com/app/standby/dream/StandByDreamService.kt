@@ -6,30 +6,48 @@ import android.content.res.Configuration
 import android.os.BatteryManager
 import android.service.dreams.DreamService
 import android.util.Log
-import android.view.Gravity
-import android.widget.TextView
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import com.app.standby.ui.theme.StandByScreen
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.app.standby.screens.StandByScreen
 
-class StandByDreamService : DreamService(), LifecycleOwner {
-    private var textView: TextView? = null
-
+class StandByDreamService : DreamService(), LifecycleOwner, SavedStateRegistryOwner,
+    ViewModelStoreOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    private val dreamViewModelStore = ViewModelStore()
 
     private var composeView: ComposeView? = null
-
 
 
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
 
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+
+    override val viewModelStore: ViewModelStore
+        get() = dreamViewModelStore
 
     override fun onCreate() {
         super.onCreate()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+
+        savedStateRegistryController.performAttach()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(
+            Lifecycle.Event.ON_CREATE
+        )
     }
 
     override fun onAttachedToWindow() {
@@ -38,25 +56,23 @@ class StandByDreamService : DreamService(), LifecycleOwner {
         isInteractive = true
 
         composeView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@StandByDreamService)
+            setViewTreeSavedStateRegistryOwner(this@StandByDreamService)
+            setViewTreeViewModelStoreOwner(this@StandByDreamService)
+            setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            )
             setContent {
                 StandByScreen()
             }
-
         }
-
-//        textView = TextView(this).apply {
-//            textSize = 32f
-//            setTextColor(android.graphics.Color.WHITE)
-//            setBackgroundColor(android.graphics.Color.BLACK)
-//            gravity = Gravity.CENTER
-//        }
-//        setContentView(textView)
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        setContentView(composeView)
         refresh()
     }
 
     override fun onDreamingStarted() {
         super.onDreamingStarted()
-
         if (!isDeviceCharging()) {
             finish()
             return
@@ -70,7 +86,8 @@ class StandByDreamService : DreamService(), LifecycleOwner {
     }
 
     override fun onDetachedFromWindow() {
-//        textView = null
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        composeView = null
         super.onDetachedFromWindow()
     }
 
@@ -78,10 +95,15 @@ class StandByDreamService : DreamService(), LifecycleOwner {
         super.onDreamingStopped()
     }
 
+    override fun onDestroy() {
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        dreamViewModelStore.clear()
+        super.onDestroy()
+    }
+
     private fun refresh() {
         val charging = isDeviceCharging()
-        val landscape = resources.configuration.orientation ==
-                Configuration.ORIENTATION_LANDSCAPE
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
         Log.d("Shubh", "charging=$charging landscape=$landscape")
 
@@ -95,8 +117,7 @@ class StandByDreamService : DreamService(), LifecycleOwner {
 
     private fun isDeviceCharging(): Boolean {
         val intent = registerReceiver(
-            null,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         ) ?: return false
 
         val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
