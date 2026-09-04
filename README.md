@@ -51,6 +51,26 @@ The content is subtly repositioned over time to reduce prolonged illumination of
 
 ---
 
+## 🚀 Setup
+
+StandBy runs as an Android screen saver, so it must be enabled once after install.
+
+1. Clone the repository and open it in Android Studio.
+2. Sync Gradle and run the app on a physical device.
+3. Go to **Settings → Display → Screen saver** (path varies by OEM).
+4. Select **StandBy** as the current screen saver.
+5. Set **When to start** to *While charging* or *While charging or docked*.
+
+Then place the device in **landscape** on a charger and let the screen time out.
+
+**Minimum SDK:** Android 8.0 (API 26)
+
+### Notes
+
+- StandBy activates when the screen times out on its own. Pressing the power button turns the display off without starting a screen saver — this is enforced by the platform.
+- Turn off **Developer options → Stay awake while charging** during testing, or the screen never sleeps and the screen saver never starts.
+- Landscape detection uses the system orientation, so auto-rotate must be enabled.
+
 ## 📱 Screens
 
 https://github.com/user-attachments/assets/546b0c96-9c8f-42b4-89b3-807ad5b0c10e
